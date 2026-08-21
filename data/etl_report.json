@@ -1,0 +1,77 @@
+{
+  "run_timestamp": "2026-08-21T22:29:33.367176",
+  "source_a": {
+    "raw_rows": 737392,
+    "columns": [
+      "STATE",
+      "District Name",
+      "Market Name",
+      "Commodity",
+      "Variety",
+      "Grade",
+      "Min_Price",
+      "Max_Price",
+      "Modal_Price",
+      "Price Date"
+    ],
+    "maharashtra_rows": 51816,
+    "target_commodity_rows": 51816
+  },
+  "source_b": {
+    "files": {
+      "Onion": {
+        "raw_rows": 7899,
+        "file": "Daily Price Arrival Report-07-11-2025 to 21-08-2026 for Maharashtra (6).csv"
+      },
+      "Tomato": {
+        "raw_rows": 3192,
+        "file": "Daily Price Arrival Report-07-11-2025 to 21-08-2026 for Maharashtra (7).csv"
+      },
+      "Potato": {
+        "raw_rows": 2455,
+        "file": "Daily Price Arrival Report-07-11-2025 to 21-08-2026 for Maharashtra (8).csv"
+      },
+      "Wheat": {
+        "raw_rows": 4267,
+        "file": "Daily Price Arrival Report-07-11-2025 to 21-08-2026 for Maharashtra (4).csv"
+      },
+      "Rice": {
+        "raw_rows": 206,
+        "file": "Daily Price Arrival Report-07-11-2025 to 21-08-2026 for Maharashtra (5).csv"
+      }
+    },
+    "total_rows": 18019
+  },
+  "merged": {
+    "total_rows": 69832,
+    "per_commodity": {
+      "Onion": 34654,
+      "Potato": 15973,
+      "Rice": 697,
+      "Tomato": 5160,
+      "Wheat": 13348
+    },
+    "per_source": {
+      "enam": 18019,
+      "kaggle": 51813
+    },
+    "duckdb_rows": 69832,
+    "districts": 26,
+    "markets": 270,
+    "commodities": [
+      "Potato",
+      "Rice",
+      "Wheat",
+      "Tomato",
+      "Onion"
+    ],
+    "date_range": [
+      "2023-06-06 00:00:00",
+      "2026-08-21 00:00:00"
+    ]
+  },
+  "issues": [
+    "Source A: 3 rows with modal_price <= 0 dropped"
+  ],
+  "elapsed_seconds": 4.66
+}

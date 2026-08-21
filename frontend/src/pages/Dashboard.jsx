@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../lib/i18n';
-import { getForecast, getRouting, getRoadmap } from '../lib/api';
+import { getForecast, getRouting, getRoadmap, getFilters } from '../lib/api';
 import LanguageToggle from '../components/LanguageToggle';
 import BottomDock from '../components/BottomDock';
 import HomeTab from '../components/HomeTab';
@@ -18,6 +18,11 @@ export default function Dashboard({ authUser, handleLogout }) {
   const [yieldQty, setYieldQty] = useState(50);
   const [location, setLocation] = useState('Pune');
 
+  const [stateName, setStateName] = useState('Maharashtra');
+  const [district, setDistrict] = useState('Pune');
+  const [market, setMarket] = useState('Pune');
+  const [filters, setFilters] = useState(null);
+
   // activeTab State for Apple-dock router
   const [activeTab, setActiveTab] = useState('home');
 
@@ -29,7 +34,7 @@ export default function Dashboard({ authUser, handleLogout }) {
   const fetchForecast = async () => {
     setForecast(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const data = await getForecast(crop, 'Pune Mandi');
+      const data = await getForecast(crop, district, market);
       setForecast({ data, loading: false, error: null });
     } catch (err) {
       console.error(err);
@@ -40,7 +45,10 @@ export default function Dashboard({ authUser, handleLogout }) {
   const fetchRouting = async () => {
     setRouting(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const data = await getRouting(crop, yieldQty, location);
+      // Hardcode default lat/lon for origin as requested
+      const lat = 18.5204;
+      const lon = 73.8567;
+      const data = await getRouting(lat, lon, crop, yieldQty);
       setRouting({ data, loading: false, error: null });
     } catch (err) {
       console.error(err);
@@ -60,13 +68,25 @@ export default function Dashboard({ authUser, handleLogout }) {
   };
 
   useEffect(() => {
+    async function loadFilters() {
+      try {
+        const data = await getFilters();
+        setFilters(data);
+      } catch (err) {
+        console.error('Failed to load filters:', err);
+      }
+    }
+    loadFilters();
+  }, []);
+
+  useEffect(() => {
     fetchForecast();
     fetchRoadmap();
-  }, [crop, location]);
+  }, [crop, district, market]);
 
   useEffect(() => {
     fetchRouting();
-  }, [crop, yieldQty, location]);
+  }, [crop, yieldQty, district, market]);
 
   // Tab views rendering
   const renderTabContent = () => {
@@ -76,7 +96,9 @@ export default function Dashboard({ authUser, handleLogout }) {
           <HomeTab
             crop={crop}
             yieldQty={yieldQty}
-            location={location}
+            stateName={stateName}
+            district={district}
+            market={market}
             routingData={routing.data}
             loading={routing.loading}
             error={routing.error}
@@ -110,6 +132,7 @@ export default function Dashboard({ authUser, handleLogout }) {
             crop={crop}
             location={location}
             roadmapData={roadmap.data}
+            recommendation={forecast.data?.recommendation}
             loading={roadmap.loading}
             error={roadmap.error}
             retryFn={fetchRoadmap}
@@ -167,6 +190,67 @@ export default function Dashboard({ authUser, handleLogout }) {
           </div>
         </div>
       </header>
+
+      {/* Filter Bar */}
+      <div className="bg-white border-b border-emerald-950/10 shadow-sm z-20 sticky top-18 px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center gap-4">
+        {filters && (
+          <>
+            <select
+              className="bg-emerald-50 border border-emerald-200 text-[#143D2B] text-sm rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-[#D99B26] outline-none"
+              value={stateName}
+              onChange={(e) => {
+                setStateName(e.target.value);
+                const firstDistrict = filters.districts.find(d => d.state === e.target.value)?.district || '';
+                setDistrict(firstDistrict);
+                const firstMarket = filters.markets.find(m => m.district === firstDistrict)?.market || '';
+                setMarket(firstMarket);
+              }}
+            >
+              {filters.states.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select
+              className="bg-emerald-50 border border-emerald-200 text-[#143D2B] text-sm rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-[#D99B26] outline-none"
+              value={district}
+              onChange={(e) => {
+                setDistrict(e.target.value);
+                const firstMarket = filters.markets.find(m => m.district === e.target.value)?.market || '';
+                setMarket(firstMarket);
+              }}
+            >
+              {filters.districts.filter(d => d.state === stateName).map(d => <option key={d.district} value={d.district}>{d.district}</option>)}
+            </select>
+            <select
+              className="bg-emerald-50 border border-emerald-200 text-[#143D2B] text-sm rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-[#D99B26] outline-none"
+              value={market}
+              onChange={(e) => setMarket(e.target.value)}
+            >
+              {filters.markets.filter(m => m.district === district).map(m => <option key={m.market} value={m.market}>{m.market}</option>)}
+            </select>
+            <select
+              className="bg-emerald-50 border border-emerald-200 text-[#143D2B] text-sm rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-[#D99B26] outline-none"
+              value={crop}
+              onChange={(e) => setCrop(e.target.value)}
+            >
+              {filters.commodities.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5">
+              <span className="text-sm text-[#143D2B]">Qty (q):</span>
+              <input
+                type="number"
+                className="w-16 bg-transparent text-[#143D2B] text-sm outline-none"
+                value={yieldQty}
+                onChange={(e) => setYieldQty(Number(e.target.value))}
+                min="1"
+              />
+            </div>
+          </>
+        )}
+        {stateName !== 'Maharashtra' && (
+          <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-200">
+            Historical data only
+          </span>
+        )}
+      </div>
 
       {/* Main Tab Render Space */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">

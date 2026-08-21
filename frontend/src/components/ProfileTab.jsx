@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../lib/i18n';
-import { User, Bell, Shield, Phone, MessageSquare, LogOut, CheckCircle } from 'lucide-react';
+import { User, Bell, Shield, Phone, MessageSquare, LogOut, CheckCircle, Clock } from 'lucide-react';
+import AlertSubscribe from './AlertSubscribe';
 
 export default function ProfileTab({ authUser, handleLogout }) {
   const { t } = useLanguage();
@@ -192,6 +193,39 @@ export default function ProfileTab({ authUser, handleLogout }) {
           </div>
 
         </form>
+      </div>
+
+      {/* New Component: Alert Subscribe */}
+      <AlertSubscribe commodity="Onion" district="Pune" state="Maharashtra" />
+
+      {/* Recent Alerts (Mock) */}
+      <div className="bg-white border border-emerald-100 rounded-2xl shadow-sm p-5 md:p-6 font-sans-custom">
+        <h3 className="text-lg font-bold text-[#143D2B] mb-4 flex items-center gap-2" style={{ fontFamily: 'Times New Roman, serif' }}>
+          <Clock className="w-5 h-5 text-emerald-800" />
+          Recent Alerts
+        </h3>
+        <div className="space-y-3">
+          <div className="p-3 border border-slate-100 rounded-xl bg-slate-50 flex items-start gap-3">
+            <div className="mt-0.5 p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
+              <Bell className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800">Price Spike Detected: Onion in Pune</p>
+              <p className="text-xs text-slate-500 mt-1">Current rate crossed your threshold of ₹{priceThreshold}. Peak predicted tomorrow.</p>
+              <p className="text-[10px] text-slate-400 mt-1 font-bold">2 hours ago</p>
+            </div>
+          </div>
+          <div className="p-3 border border-slate-100 rounded-xl bg-slate-50 flex items-start gap-3">
+            <div className="mt-0.5 p-1.5 bg-amber-100 text-amber-700 rounded-lg">
+              <Bell className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800">Weather Warning: Heavy Rain</p>
+              <p className="text-xs text-slate-500 mt-1">Unexpected rainfall in Nashik might delay your Tomato harvest.</p>
+              <p className="text-[10px] text-slate-400 mt-1 font-bold">1 day ago</p>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>

@@ -1,10 +1,55 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../lib/i18n';
 import { Landmark, ArrowUpRight, TrendingUp, ShieldAlert, Route, Truck, Warehouse, Sparkles } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
+import L from 'leaflet';
 import RoutingTable from './RoutingTable';
+import { getHistory } from '../lib/api';
 
-export default function HomeTab({ crop, yieldQty, location, routingData, loading, error, retryFn }) {
+// Fix Leaflet default icon issues
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+const customOriginIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+export default function HomeTab({ crop, yieldQty, stateName, district, market, routingData, loading, error, retryFn }) {
   const { t } = useLanguage();
+  const [historyData, setHistoryData] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      setHistoryLoading(true);
+      try {
+        const res = await getHistory(stateName, district, market, crop, 30);
+        const formatted = (res.data || []).map(row => ({
+          date: row.price_date,
+          price: row.modal_price
+        })).reverse(); // Oldest first for chart
+        setHistoryData(formatted);
+      } catch (err) {
+        console.error('Failed to fetch history', err);
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+    if (stateName && district && market && crop) {
+      fetchHistory();
+    }
+  }, [stateName, district, market, crop]);
 
   if (loading) {
     return (
@@ -35,30 +80,32 @@ export default function HomeTab({ crop, yieldQty, location, routingData, loading
     );
   }
 
-  const topMandi = routingData?.[0];
-  const nearestMandi = [...(routingData || [])].sort((a, b) => a.distance - b.distance)[0];
+  const markets = routingData || [];
+  
+  // Transform for routing table
+  const tableData = markets.map((m, idx) => ({
+    mandi_name: m.name,
+    distance: m.distance_km,
+    raw_rate: m.current_rate,
+    transport_cost: m.transport_cost,
+    mandi_fee: m.mandi_fee || Math.round(m.current_rate * yieldQty * 0.015),
+    net_profit: m.net_profit,
+    is_top_recommendation: m.is_top_recommendation || idx === 0
+  }));
+
+  const topMandi = tableData[0];
+  const sortedByDistance = [...markets].sort((a, b) => a.distance_km - b.distance_km);
+  const nearestMandi = sortedByDistance[0];
   
   const currentRate = topMandi ? `₹${topMandi.raw_rate}/q` : 'N/A';
-  const nearestName = nearestMandi ? `${nearestMandi.mandi_name} (${nearestMandi.distance}km)` : 'N/A';
+  const nearestName = nearestMandi ? `${nearestMandi.name} (${nearestMandi.distance_km}km)` : 'N/A';
   
   const isPerishable = crop === 'Tomato' || crop === 'Onion';
   
-  const mandiCoords = {
-    'Pune Mandi': { x: 100, y: 220 },
-    'Mumbai Mandi': { x: 50, y: 150 },
-    'Solapur Mandi': { x: 300, y: 260 },
-    'Nashik Mandi': { x: 140, y: 60 },
-    'Ahmednagar Mandi': { x: 230, y: 130 }
-  };
-
-  const locationCoords = {
-    'Pune': { x: 100, y: 220 },
-    'Solapur': { x: 300, y: 260 },
-    'Nashik': { x: 140, y: 60 },
-    'Ahmednagar': { x: 230, y: 130 }
-  };
-
-  const startCoord = locationCoords[location] || { x: 100, y: 220 };
+  // Default origin Pune
+  const originLat = 18.5204;
+  const originLon = 73.8567;
+  const originPosition = [originLat, originLon];
 
   return (
     <div className="space-y-6">
@@ -132,105 +179,41 @@ export default function HomeTab({ crop, yieldQty, location, routingData, loading
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           
-          {/* SVG Map Container */}
-          <div className="lg:col-span-7 bg-slate-50 border border-slate-100 rounded-xl relative overflow-hidden h-[320px] flex items-center justify-center">
-            <svg viewBox="0 0 400 300" className="w-full h-full p-4">
-              <defs>
-                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e2e8f0" strokeWidth="0.5" />
-                </pattern>
-                <style>{`
-                  @keyframes dash {
-                    to {
-                      stroke-dashoffset: -40;
-                    }
-                  }
-                  .route-flow-line {
-                    stroke-dasharray: 6, 4;
-                    animation: dash 1.5s linear infinite;
-                  }
-                `}</style>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#grid)" rx="8" />
-
-              {/* Draw Route Paths */}
-              {routingData?.map((mandi) => {
-                const targetCoord = mandiCoords[mandi.mandi_name];
-                if (!targetCoord) return null;
-                const isTop = mandi.is_top_recommendation;
-
+          {/* Map Container */}
+          <div className="lg:col-span-7 bg-slate-50 border border-slate-100 rounded-xl relative overflow-hidden h-[320px] flex items-center justify-center z-10">
+            <MapContainer center={originPosition} zoom={7} style={{ height: '100%', width: '100%' }}>
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution="&copy; OpenStreetMap contributors"
+              />
+              <Marker position={originPosition} icon={customOriginIcon}>
+                <Popup>Origin (Approx)</Popup>
+              </Marker>
+              
+              {markets.map((m, i) => {
+                const isTop = m.is_top_recommendation || i === 0;
                 return (
-                  <g key={mandi.mandi_name}>
-                    <line
-                      x1={startCoord.x}
-                      y1={startCoord.y}
-                      x2={targetCoord.x}
-                      y2={targetCoord.y}
-                      stroke={isTop ? '#D99B26' : '#94A3B8'}
-                      strokeWidth={isTop ? 3.5 : 2}
-                      strokeOpacity={isTop ? 0.8 : 0.4}
+                  <React.Fragment key={m.name}>
+                    <Marker position={[m.lat, m.lon]}>
+                      <Popup>
+                        <b>{m.name}</b><br/>
+                        Dist: {m.distance_km} km<br/>
+                        Time: {m.driving_duration_min} min<br/>
+                        Net Profit: ₹{m.net_profit}
+                      </Popup>
+                    </Marker>
+                    <Polyline
+                      positions={[originPosition, [m.lat, m.lon]]}
+                      color={isTop ? '#10B981' : '#94A3B8'}
+                      weight={isTop ? 4 : 2}
+                      opacity={isTop ? 0.8 : 0.5}
+                      dashArray={isTop ? '5, 5' : ''}
                     />
-                    
-                    {isTop && (
-                      <line
-                        x1={startCoord.x}
-                        y1={startCoord.y}
-                        x2={targetCoord.x}
-                        y2={targetCoord.y}
-                        stroke="#10B981"
-                        strokeWidth={2.5}
-                        className="route-flow-line"
-                      />
-                    )}
-                  </g>
+                  </React.Fragment>
                 );
               })}
-
-              {/* Draw Mandi Markers */}
-              {Object.keys(mandiCoords).map((name) => {
-                const coord = mandiCoords[name];
-                const activeMandi = routingData?.find(m => m.mandi_name === name);
-                if (!activeMandi) return null;
-                const isTop = activeMandi.is_top_recommendation;
-
-                return (
-                  <g key={name} transform={`translate(${coord.x}, ${coord.y})`}>
-                    <circle 
-                      r={isTop ? 10 : 7} 
-                      fill={isTop ? '#D99B26' : '#FFFFFF'} 
-                      stroke={isTop ? '#143D2B' : '#475569'}
-                      strokeWidth={2}
-                    />
-                    <circle r={isTop ? 5 : 3} fill={isTop ? '#143D2B' : '#475569'} />
-                    <text 
-                      y={-14} 
-                      textAnchor="middle" 
-                      className="text-[9px] font-black fill-[#143D2B]"
-                      style={{ fontFamily: 'Inter, sans-serif' }}
-                    >
-                      {activeMandi.mandi_name.replace(' Mandi', '')}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* Draw Location Marker */}
-              <g transform={`translate(${startCoord.x}, ${startCoord.y})`}>
-                <circle r={14} fill="#143D2B" fillOpacity={0.15} className="animate-ping" />
-                <circle r={8} fill="#143D2B" stroke="#FFFFFF" strokeWidth={2} />
-                <circle r={3} fill="#FFFFFF" />
-                <text 
-                  y={18} 
-                  textAnchor="middle" 
-                  className="text-[10px] font-extrabold fill-slate-800"
-                  style={{ fontFamily: 'Inter, sans-serif' }}
-                >
-                  {location} ({t('today')})
-                </text>
-              </g>
-            </svg>
-
-            <div className="absolute top-3 right-3 bg-white/95 px-2 py-1 rounded border border-slate-200 text-[10px] font-bold text-slate-500 shadow-sm font-sans-custom">
+            </MapContainer>
+            <div className="absolute top-3 right-3 bg-white/95 px-2 py-1 rounded border border-slate-200 text-[10px] font-bold text-slate-500 shadow-sm font-sans-custom z-[400]">
               OSRM 2.4 LIVE
             </div>
           </div>
@@ -270,26 +253,26 @@ export default function HomeTab({ crop, yieldQty, location, routingData, loading
                 )}
               </div>
 
-              {topMandi && (
+              {markets[0] && (
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
                     <span className="font-semibold text-slate-500">Destination</span>
-                    <span className="font-bold text-slate-800">{topMandi.mandi_name}</span>
+                    <span className="font-bold text-slate-800">{markets[0].name}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
                     <span className="font-semibold text-slate-500">Total Distance</span>
-                    <span className="font-bold text-slate-800">{topMandi.distance} km</span>
+                    <span className="font-bold text-slate-800">{markets[0].distance_km} km</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
                     <span className="font-semibold text-slate-500">Transit Duration</span>
                     <span className="font-bold text-slate-800">
-                      {Math.ceil(topMandi.distance * 1.3)} mins (OSRM)
+                      {markets[0].driving_duration_min} mins
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1.5">
                     <span className="font-semibold text-slate-500">Est. Transport Cost</span>
                     <span className="font-bold text-[#D99B26]">
-                      ₹{topMandi.transport_cost.toLocaleString('en-IN')}
+                      ₹{markets[0].transport_cost.toLocaleString('en-IN')}
                     </span>
                   </div>
                 </div>
@@ -315,7 +298,33 @@ export default function HomeTab({ crop, yieldQty, location, routingData, loading
         </div>
       </div>
 
-      <RoutingTable routingData={routingData} yieldQty={yieldQty} />
+      <RoutingTable routingData={tableData} yieldQty={yieldQty} />
+
+      {/* History Chart */}
+      <div className="bg-white border border-emerald-100/60 rounded-2xl shadow-sm p-4 md:p-6">
+        <h2 className="text-xl font-bold text-[#143D2B] mb-2" style={{ fontFamily: 'Times New Roman, serif' }}>
+          Past Price History (30 Days)
+        </h2>
+        {historyLoading ? (
+          <div className="h-64 flex items-center justify-center text-slate-500">Loading history...</div>
+        ) : historyData.length === 0 ? (
+          <div className="h-64 flex items-center justify-center text-slate-500">No historical data found.</div>
+        ) : (
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={historyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis dataKey="date" tick={{fontSize: 10, fill: '#64748B'}} tickLine={false} axisLine={false} />
+                <YAxis tick={{fontSize: 10, fill: '#64748B'}} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
+                <RechartsTooltip 
+                  contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px'}}
+                />
+                <Line type="monotone" dataKey="price" stroke="#10B981" strokeWidth={2} dot={false} activeDot={{r: 6, fill: '#D99B26', stroke: '#fff', strokeWidth: 2}} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
 
     </div>
   );

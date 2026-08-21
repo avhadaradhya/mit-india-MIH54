@@ -108,6 +108,21 @@ const dictionary = {
     target_threshold: "Alert Price Threshold",
     save_firebase: "Save Preferences to Firebase",
     logout: "Sign Out",
+
+    // New additions
+    show_model_details: "Show model details",
+    arima_order: "ARIMA Order",
+    aic: "AIC",
+    rmse: "RMSE",
+    training_window: "Training Window",
+    get_whatsapp_alerts: "Get WhatsApp Alerts",
+    phone_number: "Phone Number",
+    subscribe: "Subscribe",
+    subscribed_successfully: "Subscribed successfully!",
+    select_market: "Select Market",
+    historical_data_only: "Historical data only",
+    map_view: "Map View",
+    route: "Route"
   },
   mr: {
     app_title: "कृषकसेतू",
@@ -216,6 +231,21 @@ const dictionary = {
     target_threshold: "अलर्ट दर मर्यादा (₹/क्विंटल)",
     save_firebase: "सेटिंग्ज फायरबेसवर जतन करा",
     logout: "लॉगआउट करा",
+
+    // New additions
+    show_model_details: "मॉडेलचे तपशील दाखवा",
+    arima_order: "ARIMA क्रम (Order)",
+    aic: "AIC",
+    rmse: "RMSE",
+    training_window: "प्रशिक्षण कालावधी (Training Window)",
+    get_whatsapp_alerts: "व्हॉट्सॲप अलर्ट मिळवा",
+    phone_number: "फोन नंबर",
+    subscribe: "सबस्क्राईब करा",
+    subscribed_successfully: "यशस्वीरित्या सबस्क्राईब केले!",
+    select_market: "बाजारपेठ (मंडी) निवडा",
+    historical_data_only: "केवळ ऐतिहासिक माहिती (Historical data only)",
+    map_view: "नकाशा (Map View)",
+    route: "मार्ग (Route)"
   }
 };
 

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../lib/i18n';
-import { Sprout, CloudSun, Warehouse, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Sprout, CloudSun, Warehouse, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, ShieldAlert, FileText, Loader2 } from 'lucide-react';
+import { getExplanation } from '../lib/api';
 
 const IconMap = {
   Sprout: Sprout,
@@ -9,14 +10,42 @@ const IconMap = {
   TrendingUp: TrendingUp
 };
 
-export default function RoadmapTab({ crop, location, roadmapData, loading, error, retryFn }) {
-  const { t } = useLanguage();
+export default function RoadmapTab({ crop, location, roadmapData, recommendation, loading, error, retryFn }) {
+  const { t, language } = useLanguage();
   const [expandedSteps, setExpandedSteps] = useState({
     0: true,
     1: false,
     2: false,
     3: false
   });
+  
+  const [explanation, setExplanation] = useState('');
+  const [loadingExp, setLoadingExp] = useState(false);
+
+  useEffect(() => {
+    if (!recommendation) return;
+    let isMounted = true;
+    
+    async function fetchExp() {
+      setLoadingExp(true);
+      try {
+        const text = await getExplanation(recommendation, language);
+        if (isMounted) {
+          setExplanation(text);
+        }
+      } catch (err) {
+        console.error('Failed to fetch explanation:', err);
+        if (isMounted) {
+          setExplanation(t('error_loading'));
+        }
+      } finally {
+        if (isMounted) setLoadingExp(false);
+      }
+    }
+    
+    fetchExp();
+    return () => { isMounted = false; };
+  }, [recommendation, language, t]);
 
   if (loading) {
     return (
@@ -71,6 +100,33 @@ export default function RoadmapTab({ crop, location, roadmapData, loading, error
       <h2 className="text-2xl font-bold text-[#143D2B] mb-6" style={{ fontFamily: 'Times New Roman, serif' }}>
         {t('lifecycle_roadmap')}
       </h2>
+
+      {/* AI Explanation Section */}
+      <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 shadow-sm relative overflow-hidden font-sans-custom">
+        <div className="absolute -right-4 -top-4 opacity-5">
+          <FileText className="w-24 h-24" />
+        </div>
+        <div className="flex items-start gap-3 relative z-10">
+          <div className="p-2 bg-white rounded-lg shadow-sm border border-emerald-100 shrink-0">
+            <FileText className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-bold text-[#143D2B] mb-1">
+              AI Planning Narrative
+            </h3>
+            {loadingExp ? (
+              <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold mt-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Generating analysis...
+              </div>
+            ) : explanation ? (
+              <p className="text-xs text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">
+                {explanation}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       <div className="space-y-4 font-sans-custom">
         {steps.map((step, index) => {

@@ -1,7 +1,9 @@
 import React from 'react';
 import { useLanguage } from '../lib/i18n';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot } from 'recharts';
 import { TrendingUp, Award, Calendar, AlertTriangle, HelpCircle } from 'lucide-react';
+import ModelMetrics from './ModelMetrics';
+import AlertSubscribe from './AlertSubscribe';
 
 export default function ForecastTab({
   crop, setCrop,
@@ -54,16 +56,18 @@ export default function ForecastTab({
   }
 
   const { recommendation, prices } = forecastData;
-  const { decision, hold_days, current_price, predicted_peak_price, predicted_jump } = recommendation;
+  const { decision, hold_days, current_price, predicted_peak_price, predicted_jump, action_banner_text } = recommendation;
 
   const todayObj = [...prices].reverse().find(p => !p.is_forecast);
   const todayDate = todayObj ? todayObj.date : '';
 
-  // Add confidence bounds +/- 5% for chart visualization
+  // Use actual confidence bounds from API or fallback
   const chartData = prices.map(p => ({
     ...p,
-    high: Math.round(p.price * 1.05),
-    low: Math.round(p.price * 0.95)
+    high: p.ci_upper || Math.round(p.price * 1.05),
+    low: p.ci_lower || Math.round(p.price * 0.95),
+    isPeak: p.is_peak,
+    isDip: p.is_dip
   }));
 
   const isHold = decision === 'HOLD';
@@ -96,6 +100,9 @@ export default function ForecastTab({
     }
     return null;
   };
+
+  const peakPoint = chartData.find(d => d.isPeak) || chartData.reduce((prev, current) => (prev.price > current.price) ? prev : current, chartData[0]);
+  const dipPoint = chartData.find(d => d.isDip);
 
   return (
     <div className="space-y-6">
@@ -236,6 +243,41 @@ export default function ForecastTab({
                       }} 
                     />
                   )}
+
+                  {peakPoint && peakPoint.is_forecast && (
+                    <ReferenceDot 
+                      x={peakPoint.date} 
+                      y={peakPoint.price} 
+                      r={5} 
+                      fill="#D99B26" 
+                      stroke="#fff"
+                      strokeWidth={2}
+                      label={{ 
+                        position: 'top', 
+                        value: 'PEAK', 
+                        fill: '#D99B26', 
+                        fontSize: 10, 
+                        fontWeight: 'bold' 
+                      }} 
+                    />
+                  )}
+                  {dipPoint && dipPoint.is_forecast && (
+                    <ReferenceDot 
+                      x={dipPoint.date} 
+                      y={dipPoint.price} 
+                      r={5} 
+                      fill="#ef4444" 
+                      stroke="#fff"
+                      strokeWidth={2}
+                      label={{ 
+                        position: 'bottom', 
+                        value: 'DIP', 
+                        fill: '#ef4444', 
+                        fontSize: 10, 
+                        fontWeight: 'bold' 
+                      }} 
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -314,15 +356,19 @@ export default function ForecastTab({
             <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-505 flex gap-2 items-start" style={{ fontFamily: 'Inter, sans-serif' }}>
               <Calendar className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
               <span>
-                {isHold 
+                {action_banner_text || (isHold 
                   ? "Holding protects your returns from market gluts and targets optimal price windows."
                   : "Prices are expected to decline due to arrival increases. Sell now to protect yield values."
-                }
+                )}
               </span>
             </div>
           </div>
 
         </div>
+        
+        {forecastData.metrics && (
+          <ModelMetrics metrics={forecastData.metrics} />
+        )}
       </div>
 
       {/* AI Explainer Card */}
@@ -373,6 +419,8 @@ export default function ForecastTab({
           </div>
         </div>
       </div>
+
+      <AlertSubscribe commodity={crop} district={location} state="Maharashtra" />
 
     </div>
   );
