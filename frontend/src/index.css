@@ -1,1 +1,41 @@
 @import "tailwindcss";
+
+@theme {
+  --font-serif: "Times New Roman", Times, Baskerville, Georgia, serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --color-primary-green: #143D2B;
+  --color-accent-gold: #D99B26;
+  --color-success-green: #059669;
+  --color-bg-base: #F8FAF9;
+  --color-border-emerald: #D1FAE5;
+}
+
+/* Base font rules */
+h1, h2, h3, h4, h5, h6, .font-serif-custom {
+  font-family: "Times New Roman", Times, Baskerville, Georgia, serif !important;
+}
+
+body, p, span, div, button, input, select, label, table, td, th, .font-sans-custom {
+  font-family: "Inter", system-ui, -apple-system, sans-serif !important;
+}
+
+/* Smooth transitions */
+.transition-all-custom {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
