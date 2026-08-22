@@ -1,5 +1,5 @@
 {
-  "run_timestamp": "2026-08-21T22:29:33.367176",
+  "run_timestamp": "2026-08-22T08:09:39.881451",
   "source_a": {
     "raw_rows": 737392,
     "columns": [
@@ -59,11 +59,11 @@
     "districts": 26,
     "markets": 270,
     "commodities": [
+      "Onion",
       "Potato",
-      "Rice",
       "Wheat",
       "Tomato",
-      "Onion"
+      "Rice"
     ],
     "date_range": [
       "2023-06-06 00:00:00",
@@ -73,5 +73,5 @@
   "issues": [
     "Source A: 3 rows with modal_price <= 0 dropped"
   ],
-  "elapsed_seconds": 4.66
+  "elapsed_seconds": 3.93
 }

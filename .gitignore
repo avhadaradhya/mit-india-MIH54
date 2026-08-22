@@ -44,3 +44,30 @@ Thumbs.db
 # Optional: local database files
 *.sqlite
 *.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+*.duckdb.wal.*
+*.duckdb.tmp
+
+# Temporary files
+.tmp_presentation/
+
+# Environment
+.env
+.env.*
+
+# Node
+node_modules/
+dist/
+build/

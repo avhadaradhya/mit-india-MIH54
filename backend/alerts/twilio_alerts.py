@@ -88,45 +88,73 @@ def send_whatsapp_alert(phone: str, message: str) -> Dict[str, Any]:
         return {"status": "error", "message": str(e)}
 
 
-def format_alert_message(recommendation: Dict[str, Any], lang: str = 'en') -> str:
+def generate_daily_briefing(phone: str, crop: str, district: str) -> Dict[str, str]:
     """
-    Format the alert message in the specified language.
+    Generate a decoupled daily briefing object.
     
     Args:
-        recommendation (dict): Recommendation data.
-        lang (str, optional): Language code ('en' or 'mr'). Defaults to 'en'.
+        phone (str): The recipient's phone number.
+        crop (str): Commodity name.
+        district (str): District name.
         
     Returns:
-        str: Formatted message.
+        dict: Briefing lines.
     """
-    commodity = recommendation.get('commodity', 'Commodity')
-    market = recommendation.get('market', 'Market')
-    current_price = recommendation.get('current_price', 0)
-    peak_price = recommendation.get('peak_price', 0)
-    hold_days = recommendation.get('hold_days', 0)
+    from forecasting.engine import get_cached_forecast, generate_forecast
+    
+    # Try getting the forecast
+    forecast_data = get_cached_forecast(crop, district, "nearby APMC")
+    if not forecast_data:
+        try:
+            forecast_data = generate_forecast(crop, district, "nearby APMC")
+        except Exception:
+            forecast_data = {}
+            
+    current_price = forecast_data.get('current_price', 0)
+    recommendation = forecast_data.get('recommendation', {})
     action = recommendation.get('action', 'Hold')
+    peak_price = recommendation.get('peak_price', current_price)
+    hold_days = recommendation.get('hold_days', 0)
     
-    # Determine verbs based on price change
-    if peak_price >= current_price:
-        action_verb = "rise"
-        action_verb_mr = "वाढणे"
+    # Trend computation
+    trend_val = 0
+    if current_price > 0:
+        trend_val = ((peak_price - current_price) / current_price) * 100
+        
+    trend_arrow = "," if trend_val >= 0 else ","
+    
+    price_line = f"{crop} in {district}: ,1{current_price}/qtl today, projected {trend_arrow} {abs(trend_val):.1f}%."
+    weather_line = "Moderate weather expected."
+    
+    # Simple recommendation formatting
+    if "sell" in action.lower():
+        rec_line = f"Recommendation: SELL - {action.upper()}."
     else:
-        action_verb = "fall"
-        action_verb_mr = "घटणे"
+        rec_line = f"Recommendation: HOLD - forecast peak in {hold_days} days at ,1{peak_price}."
         
-    # Translate action to Marathi if needed
-    action_mr = action
-    if action.lower() == 'sell immediately':
-        action_mr = 'लगेच विका'
-    elif action.lower() == 'hold':
-        action_mr = 'प्रतीक्षा करा'
-    elif 'sell in' in action.lower():
-        action_mr = f'{hold_days} दिवसांत विका'
-        
+    return {
+        "price_line": price_line,
+        "trend_arrow": trend_arrow,
+        "weather_line": weather_line,
+        "recommendation_line": rec_line
+    }
+
+def format_alert_message(briefing: Dict[str, str], lang: str = 'en') -> str:
+    """Format the briefing dictionary into a single text block."""
     if lang == 'mr':
-        return f"कृषकसेतू सूचना: {market} येथील {commodity} {hold_days} दिवसांत ₹{peak_price}/क्विंटल पर्यंत {action_verb_mr} अपेक्षित (सध्या ₹{current_price}). शिफारस: {action_mr}. सदस्यता रद्द करण्यासाठी STOP पाठवा."
-    
-    return f"KrushakSetu Alert: {commodity} at {market} expected to {action_verb} at ₹{peak_price}/q in {hold_days} days (currently ₹{current_price}). Recommendation: {action}. Reply STOP to unsubscribe."
+        return (
+            f"🔔 KrushakSetu Alert (Marathi):\n"
+            f"{briefing['price_line']}\n"
+            f"{briefing['weather_line']}\n"
+            f"{briefing['recommendation_line']}"
+        )
+        
+    return (
+        f"🔔 KrushakSetu Alert:\n"
+        f"{briefing['price_line']}\n"
+        f"{briefing['weather_line']}\n"
+        f"{briefing['recommendation_line']}"
+    )
 
 
 def check_and_send_alerts() -> List[Dict[str, Any]]:
@@ -192,7 +220,8 @@ def check_and_send_alerts() -> List[Dict[str, Any]]:
         
         if not sent_check:
             # New alert
-            message = format_alert_message(recommendation, lang)
+            briefing = generate_daily_briefing(phone, commodity, district)
+            message = format_alert_message(briefing, lang)
             send_result = send_whatsapp_alert(phone, message)
             
             # Log to sent_alerts

@@ -59,8 +59,8 @@ const dictionary = {
     tab_home: "Home",
     tab_forecast: "Forecast",
     tab_calculate: "Calculate",
-    tab_roadmap: "AI Roadmap",
-    tab_profile: "Profile & Alerts",
+    tab_roadmap: "Roadmap",
+    tab_profile: "Profile",
 
     // Tab 1: Home
     current_rate: "Current Crop Rate",
@@ -182,8 +182,8 @@ const dictionary = {
     tab_home: "मुख्यपृष्ठ",
     tab_forecast: "दर अंदाज",
     tab_calculate: "कॅल्क्युलेटर",
-    tab_roadmap: "पीक नियोजन",
-    tab_profile: "प्रोफाइल व अलर्ट",
+    tab_roadmap: "नियोजन",
+    tab_profile: "प्रोफाइल",
 
     // Tab 1: Home
     current_rate: "सध्याचा पीक दर",
@@ -281,7 +281,7 @@ export function LanguageProvider({ children }) {
   };
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t }}>
+    <LanguageContext.Provider value={{ lang, language: lang, setLang, t }}>
       {children}
     </LanguageContext.Provider>
   );

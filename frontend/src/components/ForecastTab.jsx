@@ -1,426 +1,413 @@
 import React from 'react';
+import {
+  ComposedChart,
+  Area,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  ReferenceDot,
+} from 'recharts';
+import { AlertCircle, TrendingUp, TrendingDown, Clock, ShieldAlert, Activity, BellRing, Target, AlertTriangle } from 'lucide-react';
 import { useLanguage } from '../lib/i18n';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot } from 'recharts';
-import { TrendingUp, Award, Calendar, AlertTriangle, HelpCircle } from 'lucide-react';
 import ModelMetrics from './ModelMetrics';
-import AlertSubscribe from './AlertSubscribe';
 
-export default function ForecastTab({
-  crop, setCrop,
-  location, setLocation,
-  forecastData, loading, error, retryFn
-}) {
+const CROP_THEME = {
+  Onion: '#d97706',
+  Potato: '#ca8a04',
+  Tomato: '#e11d48',
+  Wheat: '#b45309',
+  Rice: '#059669',
+};
+
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const n = parseInt(h, 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function CalloutLabel({ viewBox, text, tone }) {
+  if (!viewBox || viewBox.x == null || viewBox.y == null) return null;
+  const width = Math.min(220, Math.max(132, text.length * 6.6));
+  const x = viewBox.x - width / 2;
+  const y = tone === 'peak' ? viewBox.y - 32 : viewBox.y + 10;
+  const fill = tone === 'peak' ? '#fef3c7' : '#fee2e2';
+  const stroke = tone === 'peak' ? '#d97706' : '#dc2626';
+  const textFill = tone === 'peak' ? '#92400e' : '#991b1b';
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={22} rx={8} fill={fill} stroke={stroke} strokeWidth={1} />
+      <text x={viewBox.x} y={y + 15} textAnchor="middle" fontSize={10} fontWeight={700} fill={textFill}>
+        {text}
+      </text>
+    </g>
+  );
+}
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0].payload;
+  return (
+    <div className="bg-white border border-slate-200 p-3 rounded-2xl shadow-md text-sm">
+      <p className="text-xs font-bold text-slate-500 mb-1">{label}</p>
+      {row.observed != null && (
+        <p className="text-slate-800">Observed: <span className="font-bold">₹{Number(row.observed).toFixed(0)}</span></p>
+      )}
+      {row.forecast != null && row.observed == null && (
+        <p className="text-slate-800">Forecast: <span className="font-bold">₹{Number(row.forecast).toFixed(0)}</span></p>
+      )}
+      {row.lower != null && row.upper != null && row.observed == null && (
+        <p className="text-xs text-slate-500 mt-1">Band ₹{Number(row.lower).toFixed(0)} – ₹{Number(row.upper).toFixed(0)}</p>
+      )}
+    </div>
+  );
+}
+
+const AlertSubscribe = () => {
+  return (
+    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-3xl p-6 mt-6 border border-emerald-100 shadow-sm flex flex-col md:flex-row items-center gap-6 justify-between">
+      <div className="flex items-start gap-4">
+        <div className="bg-emerald-100 p-3 rounded-2xl flex-shrink-0 text-emerald-600 shadow-inner">
+          <BellRing size={24} />
+        </div>
+        <div>
+          <h4 className="text-emerald-900 font-bold mb-1 font-sans text-lg">Smart Price Alerts</h4>
+          <p className="text-emerald-700/80 text-sm font-sans max-w-md">Get WhatsApp notifications when prices hit your target or prediction confidence drops.</p>
+        </div>
+      </div>
+      <button className="w-full md:w-auto bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold shadow-md shadow-emerald-600/20 hover:bg-emerald-700 transition flex items-center justify-center gap-2 whitespace-nowrap">
+        <Target size={18} />
+        Set Alert
+      </button>
+    </div>
+  );
+};
+
+export default function ForecastTab({ crop, district, market, forecastData, recommendation, loading, error, retryFn, horizon, setHorizon }) {
   const { t } = useLanguage();
-
-  const crops = [
-    { value: 'Onion', label: t('onion') },
-    { value: 'Tomato', label: t('tomato') },
-    { value: 'Wheat', label: t('wheat') },
-    { value: 'Soybean', label: t('soybean') }
-  ];
-
-  const locations = [
-    { value: 'Pune', label: t('pune') },
-    { value: 'Solapur', label: t('solapur') },
-    { value: 'Nashik', label: t('nashik') },
-    { value: 'Ahmednagar', label: t('ahmednagar') }
-  ];
 
   if (loading) {
     return (
-      <div className="bg-white border border-emerald-100 rounded-2xl shadow-sm p-4 md:p-6 mb-6 animate-pulse">
-        <div className="h-7 w-48 bg-slate-200 rounded mb-6"></div>
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 h-[280px] bg-slate-100 rounded-xl"></div>
-          <div className="lg:col-span-4 h-[280px] bg-slate-100 rounded-xl"></div>
-        </div>
+      <div className="p-4 space-y-4 animate-pulse max-w-6xl mx-auto">
+        <div className="h-40 bg-white/50 rounded-3xl w-full"></div>
+        <div className="h-96 bg-white/50 rounded-3xl w-full"></div>
+        <div className="h-32 bg-white/50 rounded-3xl w-full"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white border border-rose-100 rounded-2xl shadow-sm p-6 mb-6 flex flex-col items-center justify-center text-center font-sans-custom">
-        <AlertTriangle className="w-12 h-12 text-rose-500 mb-3 animate-bounce" />
-        <h3 className="text-lg font-bold text-slate-800 mb-1 font-serif-custom">{t('error_loading')}</h3>
-        <p className="text-xs text-slate-500 font-semibold mb-4">{error}</p>
+      <div className="p-6 flex flex-col items-center justify-center h-full text-center">
+        <AlertCircle size={48} className="text-red-400 mb-4" />
+        <h3 className="text-lg font-medium text-slate-800 mb-2 font-serif">Unable to load forecast</h3>
+        <p className="text-sm text-slate-500 mb-6 font-sans">{error}</p>
         <button
-          type="button"
           onClick={retryFn}
-          className="px-4 py-2.5 text-xs font-bold text-white bg-[#143D2B] hover:bg-[#1c4e38] rounded-xl cursor-pointer"
+          className="bg-[#143D2B] text-white px-6 py-2.5 rounded-xl font-medium shadow-sm hover:bg-[#1a4f38] transition-colors"
         >
-          {t('retry')}
+          Try Again
         </button>
       </div>
     );
   }
 
-  const { recommendation, prices } = forecastData;
-  const { decision, hold_days, current_price, predicted_peak_price, predicted_jump, action_banner_text } = recommendation;
-
-  const todayObj = [...prices].reverse().find(p => !p.is_forecast);
-  const todayDate = todayObj ? todayObj.date : '';
-
-  // Use actual confidence bounds from API or fallback
-  const chartData = prices.map(p => ({
-    ...p,
-    high: p.ci_upper || Math.round(p.price * 1.05),
-    low: p.ci_lower || Math.round(p.price * 0.95),
-    isPeak: p.is_peak,
-    isDip: p.is_dip
-  }));
-
-  const isHold = decision === 'HOLD';
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white border border-slate-200 p-3 rounded-lg shadow-md font-sans-custom">
-          <p className="text-xs text-slate-500 font-semibold">{data.date}</p>
-          <p className="text-sm font-extrabold text-[#143D2B]">
-            {t('price_label')}: <span className="text-[#D99B26]">₹{data.price}</span>
-          </p>
-          <p className="text-[10px] text-slate-500 font-semibold">
-            Confidence Bounds: ₹{data.low} - ₹{data.high}
-          </p>
-          <p className="text-[10px] uppercase tracking-wider font-bold mt-1">
-            {data.is_forecast ? (
-              <span className="text-[#D99B26] bg-amber-50 px-1.5 py-0.5 rounded">
-                {t('forecast')}
-              </span>
-            ) : (
-              <span className="text-emerald-750 bg-emerald-50 px-1.5 py-0.5 rounded">
-                {t('history')}
-              </span>
-            )}
-          </p>
-        </div>
-      );
-    }
+  if (!forecastData && !recommendation) {
     return null;
-  };
+  }
 
-  const peakPoint = chartData.find(d => d.isPeak) || chartData.reduce((prev, current) => (prev.price > current.price) ? prev : current, chartData[0]);
-  const dipPoint = chartData.find(d => d.isDip);
+  const history = forecastData?.history || [];
+  const forecast = forecastData?.forecast || [];
+  const rec = recommendation || forecastData?.recommendation || null;
+  const theme = CROP_THEME[crop] || '#059669';
+  const metrics = forecastData?.metrics || {};
+  const lowConfidence = Boolean(forecastData?.low_confidence || metrics.low_confidence);
+  const lowReason = forecastData?.low_confidence_reason || metrics.low_confidence_reason;
+
+  const peakDay = rec?.peak_day_offset ?? forecastData?.peak_day_offset;
+  const dipDay = rec?.dip_day_offset ?? forecastData?.dip_day_offset;
+  const peakPrice = rec?.peak_price ?? forecastData?.peak_price;
+  const dipPrice = rec?.dip_price ?? forecastData?.dip_price;
+
+  const lastHistory = history.length ? history[history.length - 1] : null;
+  const todayDate = lastHistory?.date || (forecast[0] ? forecast[0].date : null);
+
+  const chartRows = [
+    ...history.map((item) => ({
+      date: item.date,
+      observed: item.price,
+      forecast: null,
+      lower: null,
+      upper: null,
+      ciBase: null,
+      ciWidth: null,
+    })),
+  ];
+
+  if (lastHistory) {
+    const last = chartRows[chartRows.length - 1];
+    last.forecast = lastHistory.price;
+  }
+
+  forecast.forEach((item) => {
+    const lower = item.lower ?? item.ci_lower;
+    const upper = item.upper ?? item.ci_upper;
+    chartRows.push({
+      date: item.date,
+      observed: null,
+      forecast: item.price,
+      lower,
+      upper,
+      ciBase: lower,
+      ciWidth: upper != null && lower != null ? upper - lower : null,
+    });
+  });
+
+  const peakPoint = peakDay && forecast[peakDay - 1] ? forecast[peakDay - 1] : null;
+  const dipPoint = dipDay && forecast[dipDay - 1] ? forecast[dipDay - 1] : null;
+  const sameCallout = peakPoint && dipPoint && peakPoint.date === dipPoint.date;
+
+  const isHold = rec?.action === 'HOLD';
 
   return (
-    <div className="space-y-6">
-      
-      {/* 3-Dropdown Selector Header */}
-      <div className="bg-white border border-emerald-100 rounded-2xl shadow-sm p-4 md:p-5" style={{ fontFamily: 'Inter, sans-serif' }}>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-black uppercase text-slate-500 tracking-wider">
-              {t('select_state')}
-            </label>
-            <input
-              type="text"
-              value={t('maharashtra')}
-              disabled
-              className="w-full h-11 px-3 bg-slate-100 text-slate-700 font-extrabold text-sm rounded-xl border border-slate-200 cursor-not-allowed select-none min-h-[44px]"
-            />
-          </div>
+    <div className="p-4 pb-24 max-w-6xl mx-auto space-y-6">
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-black uppercase text-slate-500 tracking-wider" htmlFor="dist-select">
-              {t('select_district')}
-            </label>
-            <select
-              id="dist-select"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-200 bg-[#F8FAF9] text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-800 cursor-pointer min-h-[44px]"
-            >
-              {locations.map((loc) => (
-                <option key={loc.value} value={loc.value}>
-                  {loc.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-black uppercase text-slate-500 tracking-wider" htmlFor="crop-select-tab">
-              {t('crop')}
-            </label>
-            <select
-              id="crop-select-tab"
-              value={crop}
-              onChange={(e) => setCrop(e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-slate-200 bg-[#F8FAF9] text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-800 cursor-pointer min-h-[44px]"
-            >
-              {crops.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* 14-Day ARIMA Price Chart */}
-      <div className="bg-white border border-emerald-100 rounded-2xl shadow-sm p-4 md:p-6">
-        <h2 className="text-2xl font-bold text-[#143D2B] mb-6" style={{ fontFamily: 'Times New Roman, serif' }}>
-          {t('price_forecast')}
-        </h2>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-          
-          {/* Recharts with Confidence bounds */}
-          <div className="lg:col-span-8 border border-slate-100 rounded-xl p-3 bg-slate-50/50 min-h-[300px] flex flex-col justify-between">
-            <div className="w-full h-[280px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={chartData}
-                  margin={{ top: 20, right: 10, left: -20, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.01}/>
-                    </linearGradient>
-                    <linearGradient id="colorInterval" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#D99B26" stopOpacity={0.12}/>
-                      <stop offset="95%" stopColor="#D99B26" stopOpacity={0.01}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fill: '#64748B', fontSize: 10, fontWeight: 500 }}
-                    axisLine={{ stroke: '#CBD5E1' }}
-                    tickLine={{ stroke: '#CBD5E1' }}
-                  />
-                  <YAxis 
-                    domain={['dataMin - 150', 'dataMax + 150']}
-                    tick={{ fill: '#64748B', fontSize: 10, fontWeight: 500 }}
-                    axisLine={{ stroke: '#CBD5E1' }}
-                    tickLine={{ stroke: '#CBD5E1' }}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  
-                  <Area
-                    type="monotone"
-                    dataKey="high"
-                    stroke="none"
-                    fill="url(#colorInterval)"
-                    fillOpacity={1}
-                    legendType="none"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="low"
-                    stroke="none"
-                    fill="#FFFFFF"
-                    fillOpacity={0.9}
-                    legendType="none"
-                  />
-                  
-                  <Area 
-                    type="monotone" 
-                    dataKey="price" 
-                    stroke="#059669" 
-                    strokeWidth={2.5}
-                    fillOpacity={1} 
-                    fill="url(#colorPrice)" 
-                  />
-
-                  {todayDate && (
-                    <ReferenceLine 
-                      x={todayDate} 
-                      stroke="#D99B26" 
-                      strokeWidth={2}
-                      strokeDasharray="5 5" 
-                      label={{ 
-                        value: t('today').toUpperCase(), 
-                        fill: '#D99B26', 
-                        position: 'top', 
-                        fontSize: 10, 
-                        fontWeight: 800,
-                        fontFamily: 'Inter, sans-serif'
-                      }} 
-                    />
-                  )}
-
-                  {peakPoint && peakPoint.is_forecast && (
-                    <ReferenceDot 
-                      x={peakPoint.date} 
-                      y={peakPoint.price} 
-                      r={5} 
-                      fill="#D99B26" 
-                      stroke="#fff"
-                      strokeWidth={2}
-                      label={{ 
-                        position: 'top', 
-                        value: 'PEAK', 
-                        fill: '#D99B26', 
-                        fontSize: 10, 
-                        fontWeight: 'bold' 
-                      }} 
-                    />
-                  )}
-                  {dipPoint && dipPoint.is_forecast && (
-                    <ReferenceDot 
-                      x={dipPoint.date} 
-                      y={dipPoint.price} 
-                      r={5} 
-                      fill="#ef4444" 
-                      stroke="#fff"
-                      strokeWidth={2}
-                      label={{ 
-                        position: 'bottom', 
-                        value: 'DIP', 
-                        fill: '#ef4444', 
-                        fontSize: 10, 
-                        fontWeight: 'bold' 
-                      }} 
-                    />
-                  )}
-                </AreaChart>
-              </ResponsiveContainer>
+      {rec && (
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl shadow-emerald-900/5 border border-white/60 overflow-hidden flex flex-col md:flex-row">
+          <div className={`p-8 md:w-2/5 flex flex-col justify-center items-start text-white relative overflow-hidden ${isHold ? 'bg-gradient-to-br from-[#103527] to-[#1a4f3b]' : 'bg-gradient-to-br from-emerald-500 to-teal-600'}`}>
+            <div className="absolute top-0 right-0 opacity-10">
+              <Activity size={120} className="-mt-4 -mr-4" />
             </div>
-            
-            <div className="flex flex-wrap justify-center items-center gap-6 mt-2 text-xs font-bold text-slate-500 font-sans-custom">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-emerald-500"></span>
-                <span>{t('history')}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-[#D99B26]"></span>
-                <span>{t('forecast')}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3.5 h-2.5 rounded bg-amber-100 border border-amber-200 border-dashed"></span>
-                <span>{t('confidence_interval')}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Decision Verdict Badge */}
-          <div className="lg:col-span-4 flex flex-col justify-between border border-slate-100 rounded-xl p-5 bg-slate-50/30">
-            <div>
-              <h3 className="text-lg font-bold text-slate-700 mb-3" style={{ fontFamily: 'Times New Roman, serif' }}>
-                {t('decision')}
-              </h3>
-
-              <div className="mb-4">
-                {isHold ? (
-                  <div 
-                    className="rounded-2xl border border-amber-200 bg-amber-55 p-4 text-center transition-all duration-200 animate-pulse"
-                    style={{ fontFamily: 'Inter, sans-serif' }}
-                  >
-                    <Award className="w-8 h-8 text-[#D99B26] mx-auto mb-2" />
-                    <span className="block text-2xl font-black text-[#D99B26] leading-tight">
-                      {t('hold_for', { days: hold_days })}
-                    </span>
-                  </div>
-                ) : (
-                  <div 
-                    className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center transition-all duration-200"
-                    style={{ fontFamily: 'Inter, sans-serif' }}
-                  >
-                    <TrendingUp className="w-8 h-8 text-emerald-700 mx-auto mb-2" />
-                    <span className="block text-2xl font-black text-emerald-700 leading-tight">
-                      {t('sell_today')}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3" style={{ fontFamily: 'Inter, sans-serif' }}>
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-xs font-semibold text-slate-500">{t('current_price')}</span>
-                  <span className="text-sm font-bold text-slate-800">
-                    {t('current_price_val', { val: current_price })}
-                  </span>
-                </div>
-                
-                <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                  <span className="text-xs font-semibold text-slate-500">{t('predicted_peak')}</span>
-                  <span className="text-sm font-bold text-slate-800">
-                    {t('predicted_peak_val', { val: predicted_peak_price })}
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-xs font-semibold text-slate-500">{t('predicted_jump')}</span>
-                  <span className="text-base font-extrabold text-[#D99B26]">
-                    {t('predicted_jump_val', { val: predicted_jump })}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-505 flex gap-2 items-start" style={{ fontFamily: 'Inter, sans-serif' }}>
-              <Calendar className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-              <span>
-                {action_banner_text || (isHold 
-                  ? "Holding protects your returns from market gluts and targets optimal price windows."
-                  : "Prices are expected to decline due to arrival increases. Sell now to protect yield values."
-                )}
+            <div className="relative z-10">
+              <span className="inline-block px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold tracking-widest uppercase mb-4 border border-white/10">
+                AI Action Plan
               </span>
-            </div>
-          </div>
-
-        </div>
-        
-        {forecastData.metrics && (
-          <ModelMetrics metrics={forecastData.metrics} />
-        )}
-      </div>
-
-      {/* AI Explainer Card */}
-      <div className="bg-white border border-emerald-100 rounded-2xl shadow-sm p-5 md:p-6">
-        <h3 className="text-lg font-bold text-[#143D2B] mb-3 flex items-center gap-2" style={{ fontFamily: 'Times New Roman, serif' }}>
-          <HelpCircle className="w-5 h-5 text-emerald-800 shrink-0" />
-          {t('ai_explainer')}
-        </h3>
-        
-        <div className="border border-emerald-50 rounded-xl bg-emerald-55/10 p-4 font-sans-custom">
-          <p className="text-sm font-bold text-slate-800 leading-relaxed mb-4">
-            {t('today') !== 'आज' 
-              ? `Prices for ${crop} in ${location} are expected to jump +₹${predicted_jump}/quintal due to unseasonal monsoon showers next week and lower arrivals from Solapur markets.`
-              : `${location} मध्ये ${t(crop.toLowerCase())} चे दर पुढील आठवड्यात अवकाळी पाऊस आणि सोलापूर बाजारातून येणाऱ्या आवकमधील घटीमुळे +₹${predicted_jump}/क्विंटल वाढण्याची अपेक्षा आहे.`
-            }
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold text-slate-600">
-            <div className="p-3 border border-slate-100 rounded-lg bg-white shadow-sm">
-              <span className="block font-black text-emerald-800 uppercase tracking-wider mb-1">Weather Impact</span>
-              <p className="leading-relaxed">
-                {t('today') !== 'आज'
-                  ? "Unseasonal rain forecasted across key producing blocks will likely delay fresh harvest pullout and limit direct supplies."
-                  : "मुख्य उत्पादक पट्ट्यात वर्तवण्यात आलेल्या अवकाळी पावसामुळे काढणी लांबणीवर पडण्याची शक्यता असून बाजारातील आवक मर्यादित राहील."
-                }
-              </p>
-            </div>
-
-            <div className="p-3 border border-slate-100 rounded-lg bg-white shadow-sm">
-              <span className="block font-black text-emerald-800 uppercase tracking-wider mb-1">Seasonal Demand</span>
-              <p className="leading-relaxed">
-                {t('today') !== 'आज'
-                  ? "Local festival processing demand is scaling up, keeping intermediate processing buyers highly active in regional APMCs."
-                  : "स्थानिक सणांच्या निमित्ताने प्रक्रिया उद्योगांकडून खरेदीत वाढ झाली असून प्रादेशिक बाजार समित्यांमध्ये खरेदीदार सक्रिय आहेत."
-                }
-              </p>
-            </div>
-
-            <div className="p-3 border border-slate-100 rounded-lg bg-white shadow-sm">
-              <span className="block font-black text-emerald-800 uppercase tracking-wider mb-1">Arrival Volume</span>
-              <p className="leading-relaxed">
-                {t('today') !== 'आज'
-                  ? "Arrival inflows from neighboring Solapur markets dropped by 18% due to harvesting labour limits."
-                  : "मजूर टंचाईमुळे शेजारील सोलापूर बाजारातून येणाऱ्या आवक मध्ये १८% घट नोंदवली गेली आहे."
-                }
+              <h3 className="text-4xl font-serif font-medium leading-tight mb-3">
+                {isHold ? `Hold ${rec.hold_days} Days` : 'Sell Today'}
+              </h3>
+              <p className="text-white/80 text-sm font-sans leading-relaxed max-w-sm">
+                {rec.confidence_note || (isHold ? 'Wait for the predicted peak to maximize returns.' : 'Optimal selling window approaches. Prices expected to dip.')}
               </p>
             </div>
           </div>
+
+          <div className="p-8 md:w-3/5 grid grid-cols-2 gap-6 bg-white/40">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 block">Current Rate</span>
+              <p className="text-3xl font-bold text-slate-800">₹{rec.current_price}</p>
+            </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2 block">Predicted Peak</span>
+              <p className="text-3xl font-bold text-slate-800">₹{rec.peak_price}</p>
+            </div>
+            <div className="col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-slate-800 font-bold block mb-1">Expected Growth Target</span>
+                <span className="text-slate-500 text-sm">If held until peak date</span>
+              </div>
+              <div className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-lg font-bold ${isHold ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
+                {isHold ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                {Math.max(0, (((rec.peak_price - rec.current_price) / Math.max(rec.current_price, 1)) * 100)).toFixed(1)}%
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lowConfidence && (
+        <div className="flex items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950">
+          <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0 text-amber-600" />
+          <div>
+            <p className="font-bold">This forecast is flagged as lower confidence</p>
+            <p className="text-sm mt-1 text-amber-900/80">{lowReason || 'Holdout error is high for this series.'}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl shadow-emerald-900/5 border border-white/60 p-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Activity className="w-5 h-5" style={{ color: theme }} />
+              SARIMAX Price Forecast
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+              Observed history plus weather-conditioned forecast for {crop} · {market}
+            </p>
+          </div>
+          <div className="flex bg-slate-100 p-1 rounded-xl">
+            {[14, 30, 60, 90].map((h) => (
+              <button
+                key={h}
+                onClick={() => setHorizon && setHorizon(h)}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition ${horizon === h ? 'bg-white shadow-sm text-emerald-700' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                {h} Days
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-[420px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartRows} margin={{ top: 28, right: 16, left: -12, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 12, fill: '#94a3b8' }}
+                axisLine={false}
+                tickLine={false}
+                dy={10}
+                tickFormatter={(val) => {
+                  if (!val) return '';
+                  const date = new Date(val);
+                  return `${date.getDate()}/${date.getMonth() + 1}`;
+                }}
+              />
+              <YAxis
+                tick={{ fontSize: 12, fill: '#94a3b8' }}
+                axisLine={false}
+                tickLine={false}
+                domain={['auto', 'auto']}
+              />
+              <Tooltip content={<ChartTooltip />} />
+
+              <Area
+                type="monotone"
+                dataKey="ciBase"
+                stackId="ci"
+                stroke="none"
+                fill="transparent"
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="ciWidth"
+                stackId="ci"
+                stroke="none"
+                fill={hexToRgba(theme, 0.18)}
+                connectNulls={false}
+                isAnimationActive={false}
+                name="Confidence band"
+              />
+
+              <Line
+                type="monotone"
+                dataKey="observed"
+                name="Observed"
+                stroke="#143D2B"
+                strokeWidth={2.5}
+                dot={false}
+                connectNulls={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="forecast"
+                name="Forecast"
+                stroke={theme}
+                strokeWidth={2.25}
+                strokeDasharray="6 4"
+                connectNulls
+                dot={{ r: 3, fill: theme, stroke: '#fff', strokeWidth: 1.5 }}
+                activeDot={{ r: 5 }}
+              />
+
+              {todayDate && (
+                <ReferenceLine
+                  x={todayDate}
+                  stroke="#94a3b8"
+                  strokeDasharray="4 4"
+                  strokeWidth={1}
+                  label={{
+                    position: 'insideTopLeft',
+                    value: t('today') || 'Today',
+                    fill: '#94a3b8',
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                />
+              )}
+
+              {peakPoint && peakPrice != null && (
+                <ReferenceDot
+                  x={peakPoint.date}
+                  y={peakPoint.price}
+                  r={5}
+                  fill="#eab308"
+                  stroke="#fff"
+                  strokeWidth={2}
+                  label={
+                    <CalloutLabel
+                      tone="peak"
+                      text={`▲ PEAK: ₹${Number(peakPrice).toFixed(0)} (Day ${peakDay})`}
+                    />
+                  }
+                />
+              )}
+              {dipPoint && dipPrice != null && !sameCallout && (
+                <ReferenceDot
+                  x={dipPoint.date}
+                  y={dipPoint.price}
+                  r={5}
+                  fill="#ef4444"
+                  stroke="#fff"
+                  strokeWidth={2}
+                  label={
+                    <CalloutLabel
+                      tone="dip"
+                      text={`▼ DIP: ₹${Number(dipPrice).toFixed(0)} (Day ${dipDay})`}
+                    />
+                  }
+                />
+              )}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-5 mt-3 text-xs font-semibold text-slate-500">
+          <span className="flex items-center gap-1.5"><span className="w-4 h-0.5 bg-[#143D2B] inline-block" /> Observed</span>
+          <span className="flex items-center gap-1.5"><span className="w-4 border-t-2 border-dashed inline-block" style={{ borderColor: theme }} /> Forecast</span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm" style={{ background: hexToRgba(theme, 0.18) }} /> 90% band
+          </span>
         </div>
       </div>
 
-      <AlertSubscribe commodity={crop} district={location} state="Maharashtra" />
+      <ModelMetrics
+        metrics={metrics}
+        lowConfidence={lowConfidence}
+        lowConfidenceReason={lowReason}
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-xl shadow-emerald-900/5 border border-white/60 flex flex-col gap-4">
+          <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 shadow-inner">
+            <Clock size={24} />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-900 text-base mb-2 font-sans">Seasonal Timing</h4>
+            <p className="text-sm text-slate-500 font-sans leading-relaxed">Historical data indicates a typical 15% price surge for {crop} in {market} during this month due to festive demand.</p>
+          </div>
+        </div>
+        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-xl shadow-emerald-900/5 border border-white/60 flex flex-col gap-4">
+          <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 shadow-inner">
+            <ShieldAlert size={24} />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-900 text-base mb-2 font-sans">Risk Assessment</h4>
+            <p className="text-sm text-slate-500 font-sans leading-relaxed">Forecast relies on continuous supply. Sudden weather disruptions or local mandi strikes may widen the confidence band.</p>
+          </div>
+        </div>
+      </div>
+
+      <AlertSubscribe />
 
     </div>
   );

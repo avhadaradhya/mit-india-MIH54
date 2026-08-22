@@ -1,233 +1,224 @@
 import React, { useState, useEffect } from 'react';
+import { AlertCircle, ChevronDown, ChevronUp, Sprout, CloudSun, Warehouse, TrendingUp, Sparkles, AlertTriangle, Truck } from 'lucide-react';
 import { useLanguage } from '../lib/i18n';
-import { Sprout, CloudSun, Warehouse, TrendingUp, ChevronDown, ChevronUp, CheckCircle2, ShieldAlert, FileText, Loader2 } from 'lucide-react';
-import { getExplanation } from '../lib/api';
+import { getExplanation, getCropRecommendation } from '../lib/api';
 
-const IconMap = {
+const ICON_MAP = {
   Sprout: Sprout,
   CloudSun: CloudSun,
   Warehouse: Warehouse,
-  TrendingUp: TrendingUp
+  TrendingUp: TrendingUp,
+  Truck: Truck
 };
 
-export default function RoadmapTab({ crop, location, roadmapData, recommendation, loading, error, retryFn }) {
-  const { t, language } = useLanguage();
-  const [expandedSteps, setExpandedSteps] = useState({
-    0: true,
-    1: false,
-    2: false,
-    3: false
-  });
+const StepAccordion = ({ step, index, isOpen, toggle }) => {
+  const Icon = ICON_MAP[step.icon] || Sprout;
   
-  const [explanation, setExplanation] = useState('');
-  const [loadingExp, setLoadingExp] = useState(false);
+  return (
+    <div className={`rounded-3xl shadow-sm border transition-all duration-300 overflow-hidden mb-4 ${isOpen ? 'bg-white/90 border-emerald-200/60 shadow-lg shadow-emerald-900/5' : 'bg-white/60 border-white/60 hover:bg-white/80'}`}>
+      <button 
+        onClick={() => toggle(index)}
+        className="w-full p-6 flex items-center justify-between text-left focus:outline-none"
+      >
+        <div className="flex items-center gap-5">
+          <div className={`p-4 rounded-2xl shadow-inner transition-colors duration-300 ${isOpen ? 'bg-emerald-500 text-white shadow-emerald-900/20' : 'bg-slate-100 text-slate-500'}`}>
+            <Icon size={24} />
+          </div>
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70 block mb-1">Phase {index + 1} • {step.phase}</span>
+            <h4 className="text-lg font-bold text-slate-800">{step.title}</h4>
+          </div>
+        </div>
+        <div className={`transition-transform duration-300 ${isOpen ? 'text-emerald-500 rotate-180' : 'text-slate-400'}`}>
+          <ChevronDown size={24} />
+        </div>
+      </button>
+      
+      <div className={`transition-all duration-300 ease-in-out origin-top overflow-hidden ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className="px-6 pb-6 pt-2">
+          <div className="pl-[76px]">
+            <p className="text-sm text-slate-700 font-medium mb-4 leading-relaxed">{step.summary}</p>
+            <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-100">
+              <p className="text-sm text-slate-600 leading-relaxed">{step.details}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default function RoadmapTab({ crop, district, market, roadmapData, recommendation, loading, error, retryFn, yieldQty }) {
+  const { language } = useLanguage();
+  const [openIndex, setOpenIndex] = useState(0);
+  const [aiNarrative, setAiNarrative] = useState(null);
+  const [narrativeLoading, setNarrativeLoading] = useState(false);
+  const [cropRec, setCropRec] = useState(null);
+  const [cropRecLoading, setCropRecLoading] = useState(false);
 
   useEffect(() => {
-    if (!recommendation) return;
-    let isMounted = true;
-    
-    async function fetchExp() {
-      setLoadingExp(true);
-      try {
-        const text = await getExplanation(recommendation, language);
-        if (isMounted) {
-          setExplanation(text);
+    async function fetchNarrative() {
+      if (recommendation) {
+        setNarrativeLoading(true);
+        try {
+          const text = await getExplanation(recommendation, language);
+          setAiNarrative(text);
+        } catch (err) {
+          console.error("Failed to fetch narrative", err);
+          setAiNarrative("Strategic timeline optimization based on market conditions.");
+        } finally {
+          setNarrativeLoading(false);
         }
-      } catch (err) {
-        console.error('Failed to fetch explanation:', err);
-        if (isMounted) {
-          setExplanation(t('error_loading'));
-        }
-      } finally {
-        if (isMounted) setLoadingExp(false);
       }
     }
-    
-    fetchExp();
-    return () => { isMounted = false; };
-  }, [recommendation, language, t]);
+    fetchNarrative();
+  }, [recommendation, language]);
+
+  useEffect(() => {
+    async function fetchCropRec() {
+      if (district) {
+        setCropRecLoading(true);
+        try {
+          const res = await getCropRecommendation(district, yieldQty, language);
+          setCropRec(res);
+        } catch (err) {
+          console.error("Failed to fetch crop recommendation", err);
+        } finally {
+          setCropRecLoading(false);
+        }
+      }
+    }
+    fetchCropRec();
+  }, [district, yieldQty, language]);
+
+  const toggleAccordion = (index) => {
+    setOpenIndex(openIndex === index ? -1 : index);
+  };
 
   if (loading) {
     return (
-      <div className="bg-white border border-emerald-100 rounded-2xl shadow-sm p-4 md:p-6 mb-6 animate-pulse font-sans-custom">
-        <div className="h-7 w-44 bg-slate-200 rounded mb-6"></div>
-        <div className="space-y-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="flex gap-4">
-              <div className="w-12 h-12 rounded-full bg-slate-200 shrink-0"></div>
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-40 bg-slate-200 rounded"></div>
-                <div className="h-10 bg-slate-100 rounded"></div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="p-4 space-y-6 max-w-4xl mx-auto animate-pulse">
+        <div className="h-32 bg-white/50 rounded-3xl w-full"></div>
+        <div className="h-24 bg-white/50 rounded-3xl w-full"></div>
+        <div className="h-24 bg-white/50 rounded-3xl w-full"></div>
+        <div className="h-24 bg-white/50 rounded-3xl w-full"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white border border-rose-100 rounded-2xl shadow-sm p-6 mb-6 flex flex-col items-center justify-center text-center font-sans-custom">
-        <ShieldAlert className="w-12 h-12 text-rose-500 mb-3" />
-        <h3 className="text-lg font-bold text-slate-800 mb-1 font-serif-custom">{t('error_loading')}</h3>
-        <p className="text-xs text-slate-500 font-semibold mb-4">{error}</p>
-        <button
-          type="button"
+      <div className="p-6 flex flex-col items-center justify-center h-full text-center">
+        <AlertCircle size={48} className="text-red-400 mb-4" />
+        <h3 className="text-lg font-medium text-slate-800 mb-2 font-serif">Unable to load roadmap</h3>
+        <p className="text-sm text-slate-500 mb-6 font-sans">{error}</p>
+        <button 
           onClick={retryFn}
-          className="px-4 py-2.5 text-xs font-bold text-white bg-[#143D2B] hover:bg-[#1c4e38] rounded-xl cursor-pointer"
+          className="bg-[#143D2B] text-white px-6 py-2.5 rounded-xl font-medium shadow-sm hover:bg-[#1a4f38] transition-colors"
         >
-          {t('retry')}
+          Try Again
         </button>
       </div>
     );
   }
 
-  if (!roadmapData || !roadmapData.steps) return null;
+  if (!roadmapData) return null;
 
-  const { perishable, steps } = roadmapData;
-
-  const toggleStep = (index) => {
-    setExpandedSteps(prev => ({
-      ...prev,
-      [index]: !prev[index]
-    }));
-  };
+  const steps = roadmapData.steps || [];
+  const isPerishable = roadmapData.perishable;
 
   return (
-    <div className="bg-white border border-emerald-100 rounded-2xl shadow-sm p-4 md:p-6 mb-6">
+    <div className="p-4 bg-transparent pb-24 max-w-4xl mx-auto">
       
-      <h2 className="text-2xl font-bold text-[#143D2B] mb-6" style={{ fontFamily: 'Times New Roman, serif' }}>
-        {t('lifecycle_roadmap')}
-      </h2>
-
-      {/* AI Explanation Section */}
-      <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 shadow-sm relative overflow-hidden font-sans-custom">
-        <div className="absolute -right-4 -top-4 opacity-5">
-          <FileText className="w-24 h-24" />
+      <header className="mb-8">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-3xl font-serif text-slate-900 tracking-tight font-medium">Strategic Roadmap</h2>
+          {isPerishable ? (
+            <span className="flex items-center text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-100/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-amber-200/50">
+              <AlertTriangle size={12} className="mr-1.5" /> Perishable
+            </span>
+          ) : (
+            <span className="flex items-center text-[10px] font-bold uppercase tracking-widest text-blue-700 bg-blue-100/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-blue-200/50">
+              <Warehouse size={12} className="mr-1.5" /> Storable
+            </span>
+          )}
         </div>
-        <div className="flex items-start gap-3 relative z-10">
-          <div className="p-2 bg-white rounded-lg shadow-sm border border-emerald-100 shrink-0">
-            <FileText className="w-5 h-5 text-emerald-600" />
+        <p className="text-sm text-slate-500 font-sans">
+          Lifecycle plan for {yieldQty}q of {crop} in {district}, targeting {market}
+        </p>
+      </header>
+
+      {/* AI Narrative Section */}
+      <div className="bg-gradient-to-br from-[#143D2B] to-[#1a4f38] rounded-3xl p-6 md:p-8 text-white mb-8 shadow-xl shadow-emerald-900/20 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="absolute -right-12 -top-12 text-white/5 pointer-events-none">
+          <Sparkles size={200} />
+        </div>
+        
+        <div className="flex-1 relative z-10 w-full">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-xs font-bold tracking-widest text-emerald-200 uppercase mb-4 border border-white/10">
+            <Sparkles size={14} className="text-amber-400" />
+            AI Execution Strategy
           </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-bold text-[#143D2B] mb-1">
-              AI Planning Narrative
-            </h3>
-            {loadingExp ? (
-              <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold mt-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Generating analysis...
-              </div>
-            ) : explanation ? (
-              <p className="text-xs text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">
-                {explanation}
-              </p>
-            ) : null}
+          
+          <h2 className="text-3xl md:text-4xl font-bold font-serif mb-3">{roadmapData.crop}</h2>
+          
+          <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-emerald-100/90 mb-6 font-sans">
+            <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5"><AlertTriangle size={16} className="text-amber-400"/> {roadmapData.perishable ? 'Perishable' : 'Non-Perishable'}</span>
+            <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">📍 {district}</span>
+            <span className="flex items-center gap-1.5 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">🎯 {market}</span>
+          </div>
+
+          <div className="bg-black/20 p-5 rounded-2xl border border-white/10 backdrop-blur-sm max-w-2xl font-sans">
+            <p className="leading-relaxed text-emerald-50">
+              {narrativeLoading ? (
+                <span className="animate-pulse">Analyzing optimal execution windows...</span>
+              ) : (
+                aiNarrative || roadmapData.expectation
+              )}
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="space-y-4 font-sans-custom">
-        {steps.map((step, index) => {
-          const StepIcon = IconMap[step.icon] || Sprout;
-          const isExpanded = expandedSteps[index];
-          const isStorageStep = index === 2; 
-
-          let labelText = '';
-          if (index === 0) labelText = t('soil_breed');
-          else if (index === 1) labelText = t('sowing_weather');
-          else if (index === 2) labelText = t('holding_strategy');
-          else if (index === 3) labelText = t('peak_selling');
-
-          return (
-            <div 
-              key={step.phase}
-              className={`border border-slate-100 rounded-xl overflow-hidden transition-all duration-200 ${
-                isExpanded ? 'shadow-sm ring-1 ring-emerald-800/10' : ''
-              }`}
-            >
-              
-              {/* Trigger */}
-              <button
-                type="button"
-                onClick={() => toggleStep(index)}
-                aria-expanded={isExpanded}
-                className="w-full flex items-center justify-between p-4 bg-slate-50/50 hover:bg-slate-100/50 transition-colors cursor-pointer text-left min-h-[44px]"
-              >
-                <div className="flex items-center gap-3">
-                  <div 
-                    className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all duration-200 ${
-                      isExpanded 
-                        ? 'bg-[#143D2B] text-white border-[#143D2B]' 
-                        : 'bg-white text-emerald-800 border-emerald-100'
-                    }`}
-                  >
-                    <StepIcon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider">
-                      {labelText}
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-800">
-                      {step.phase}: {step.title}
-                    </h3>
-                  </div>
-                </div>
-
-                <div className="text-slate-400">
-                  {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                </div>
-              </button>
-
-              {/* Content */}
-              {isExpanded && (
-                <div className="p-4 border-t border-slate-100 bg-white space-y-3">
-                  
-                  <p className="text-xs font-bold text-[#143D2B] leading-relaxed">
-                    {step.summary}
-                  </p>
-
-                  {/* Branching (Step 3: Holding Strategy) */}
-                  {isStorageStep && (
-                    <div>
-                      {perishable ? (
-                        <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 border border-rose-100 text-[10px] font-extrabold px-2.5 py-1 rounded-md">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse"></span>
-                          Perishable: Immediate APMC Direct Sell Advised (Shelf life is under 10 days)
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-extrabold px-2.5 py-1 rounded-md">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          Non-Perishable: Storage Buffer OK. WDRA Registered Warehouse Holding recommended.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <p className="text-xs text-slate-500 leading-relaxed pt-2 border-t border-slate-100">
-                    {step.details}
-                  </p>
-
-                  {/* Extra OpenWeather / Soil details */}
-                  {index === 1 && (
-                    <div className="mt-3 p-3 bg-blue-50/40 border border-blue-100/50 rounded-lg text-[11px] text-slate-600 font-semibold leading-relaxed">
-                      <strong>OpenWeather Advisory:</strong> Temperature forecast is 24°C - 31°C with 65% humidity. Pre-transplant soil hydration recommended before planting seedlings.
-                    </div>
-                  )}
-
-                  {index === 0 && (
-                    <div className="mt-3 p-3 bg-amber-50/40 border border-amber-100/50 rounded-lg text-[11px] text-slate-600 font-semibold leading-relaxed">
-                      <strong>Soil Recommendation:</strong> Black clayey loam soil observed in {location}. Seed varieties listed are tested by MPKV Rahuri for high drought tolerance.
-                    </div>
-                  )}
-
-                </div>
-              )}
-
+      {/* Comparison Card */}
+      {!cropRecLoading && cropRec && (
+        <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-6 mb-8 shadow-xl shadow-emerald-900/5">
+          <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-6 h-6 text-emerald-600" />
+            Crop Pivot Recommendation
+          </h3>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <p className="text-sm text-slate-600 leading-relaxed mb-4 whitespace-pre-line">
+                {cropRec.reasoning}
+              </p>
+              <div className="inline-block px-4 py-2 bg-emerald-100 text-emerald-800 rounded-xl font-bold text-sm">
+                Recommended: {cropRec.recommended_crop}
+              </div>
             </div>
-          );
-        })}
+            <div className="space-y-3">
+              {cropRec.crops_data.map(c => (
+                <div key={c.crop} className={`flex justify-between items-center p-3 rounded-xl border ${c.crop === cropRec.recommended_crop ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-100'}`}>
+                  <span className="font-semibold text-slate-700">{c.crop}</span>
+                  <span className="font-bold text-emerald-600">,1{c.net_profit.toLocaleString('en-IN')} net</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline/Steps */}
+      <div className="space-y-2 relative before:absolute before:inset-0 before:ml-10 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
+        {steps.map((step, index) => (
+          <StepAccordion 
+            key={index} 
+            step={step} 
+            index={index} 
+            isOpen={openIndex === index} 
+            toggle={toggleAccordion} 
+          />
+        ))}
       </div>
 
     </div>

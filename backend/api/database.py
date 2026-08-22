@@ -27,10 +27,17 @@ def close_connection():
 
 def query_df(sql: str, params: list = None) -> pd.DataFrame:
     """Execute a SQL query and return result as a pandas DataFrame."""
-    conn = get_connection()
-    if params:
-        return conn.execute(sql, params).fetchdf()
-    return conn.execute(sql).fetchdf()
+    try:
+        conn = get_connection()
+        if params:
+            df = conn.execute(sql, params).fetchdf()
+        else:
+            df = conn.execute(sql).fetchdf()
+        return df if df is not None else pd.DataFrame()
+    except Exception as e:
+        import logging
+        logging.error(f"DuckDB query failed: {e}")
+        return pd.DataFrame()
 
 def query_dicts(sql: str, params: list = None) -> list[dict]:
     """Execute a SQL query and return result as a list of dicts."""

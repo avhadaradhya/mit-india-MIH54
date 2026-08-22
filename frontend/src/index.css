@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  --font-serif: "Quicksand", system-ui, -apple-system, sans-serif;
-  --font-sans: "Quicksand", system-ui, -apple-system, sans-serif;
+  --font-serif: "Quicksand", "Mukta", system-ui, -apple-system, sans-serif;
+  --font-sans: "Quicksand", "Mukta", system-ui, -apple-system, sans-serif;
   --color-primary-green: #143D2B;
   --color-accent-gold: #D99B26;
   --color-success-green: #059669;
@@ -12,11 +12,11 @@
 
 /* Base font rules */
 h1, h2, h3, h4, h5, h6, .font-serif-custom {
-  font-family: "Quicksand", system-ui, -apple-system, sans-serif !important;
+  font-family: "Quicksand", "Mukta", system-ui, -apple-system, sans-serif !important;
 }
 
 body, p, span, div, button, input, select, label, table, td, th, .font-sans-custom {
-  font-family: "Quicksand", system-ui, -apple-system, sans-serif !important;
+  font-family: "Quicksand", "Mukta", system-ui, -apple-system, sans-serif !important;
   font-size: 1.125rem; /* Increased base font size */
 }
 
